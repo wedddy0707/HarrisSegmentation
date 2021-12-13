@@ -10,7 +10,6 @@ from typing import (
 from collections import defaultdict
 import argparse
 import json
-import copy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -25,7 +24,6 @@ from egg.core.baselines import (
     BuiltInBaseline,
 )
 from egg.zoo.compo_vs_generalization.archs import (
-    PlusOneWrapper,
     Receiver,
     Sender,
 )
@@ -33,8 +31,6 @@ from egg.zoo.compo_vs_generalization.data import (
     ScaledDataset,
     enumerate_attribute_value,
     one_hotify,
-    # select_subset_V1,
-    select_subset_V2,
     split_holdout,
     split_train_test,
 )
@@ -50,10 +46,6 @@ def get_params(params: List[str]):
     parser.add_argument(
         "--baseline", type=str, choices=["no", "mean", "builtin"], default="mean"
     )
-    parser.add_argument(
-        "--density_data", type=int, default=0, help="no sampling if equal 0"
-    )
-
     parser.add_argument(
         "--sender_hidden",
         type=int,
@@ -281,12 +273,6 @@ def main(params: List[str]):
     full_data = enumerate_attribute_value(
         opts.n_attributes, opts.n_values
     )
-    if opts.density_data > 0:
-        sampled_data = select_subset_V2(
-            full_data, opts.density_data, opts.n_attributes, opts.n_values
-        )
-        full_data = copy.deepcopy(sampled_data)
-
     train, generalization_holdout = split_holdout(full_data)
     train, uniform_holdout = split_train_test(train, 0.1)
 
