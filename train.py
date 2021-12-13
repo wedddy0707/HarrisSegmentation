@@ -198,6 +198,20 @@ class DiffLoss(torch.nn.Module):
         return loss, {"acc": acc, "acc_or": acc_or}
 
 
+class PlusOneWrapper(torch.nn.Module):
+    def __init__(self, wrapped: torch.nn.Module):
+        super().__init__()
+        self.wrapped = wrapped
+
+    def forward(
+        self,
+        *input: Tuple[Optional[torch.Tensor], ...],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        r1, r2, r3 = self.wrapped(*input)
+        r1 = r1[:, :-1]
+        return r1 + 1, r2, r3
+
+
 class DumpCorpus(core.Callback):
     def __init__(
         self,
