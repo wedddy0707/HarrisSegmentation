@@ -270,12 +270,14 @@ class DumpCorpus(core.Callback):
     def __dump(self, mode: Literal['dataset', 'language']):
         assert mode in {'dataset', 'language'}, mode
         keys = ('sender_input', 'split') if mode == 'dataset' else ('message', 'acc')
-        output: Dict[str, Union[str, Dict[str, Any]]] = dict(
+        output: Dict[str, Union[str, int, Dict[str, Any]]] = dict(
             mode=mode,
             data={
                 k: v for k, v in self.__collect_data().items() if k in keys
             },
         )
+        if mode == 'language':
+            output['epoch'] = self.epoch_counter
         print(json.dumps(output).replace(' ', ''), flush=True)
 
 
