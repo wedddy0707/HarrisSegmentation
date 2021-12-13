@@ -169,8 +169,8 @@ class DiffLoss(torch.nn.Module):
                 # NB: THIS LOSS IS NOT SUITABLY SHAPED TO BE USED IN REINFORCE TRAINING!
                 loss += F.cross_entropy(predictions, labels, reduction="mean")
 
-            acc /= self.n_attributes
-            acc_or /= self.n_attributes
+            acc = acc / self.n_attributes
+            acc_or = acc_or / self.n_attributes
         else:
             acc = (
                 torch.sum(
