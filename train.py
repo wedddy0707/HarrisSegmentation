@@ -365,21 +365,47 @@ def main(params: List[str]):
         freq=opts.stats_freq,
     )
 
-    loaders = [
-        (
-            "generalization-holdout",
-            generalization_holdout_loader,
-            DiffLoss(opts.n_attributes, opts.n_values, generalization=True),
-        ),
-        (
-            "uniform-holdout",
-            uniform_holdout_loader,
-            DiffLoss(opts.n_attributes, opts.n_values),
-        ),
-    ]
-
-    holdout_evaluator = Evaluator(loaders, opts.device, freq=0)
-    early_stopper = EarlyStopperAccuracy(opts.early_stopping_thr, validation=True)
+    holdout_evaluator = Evaluator(
+        [
+            (
+                "uniform-holdout",
+                uniform_holdout_loader,
+                DiffLoss(opts.n_attributes, opts.n_values),
+            ),
+            (
+                "generalization-holdout",
+                generalization_holdout_loader,
+                DiffLoss(opts.n_attributes, opts.n_values, generalization=True),
+            ),
+        ],
+        opts.device,
+        freq=0,
+    )
+    dump_corpus = DumpCorpus(
+        [
+            (
+                "train",
+                train_loader,
+                DiffLoss(opts.n_attributes, opts.n_values),
+            ),
+            (
+                "uniform-holdout",
+                uniform_holdout_loader,
+                DiffLoss(opts.n_attributes, opts.n_values),
+            ),
+            (
+                "generalization-holdout",
+                generalization_holdout_loader,
+                DiffLoss(opts.n_attributes, opts.n_values, generalization=True),
+            ),
+        ],
+        device=opts.device,
+        freq=1,
+    )
+    early_stopper = EarlyStopperAccuracy(
+        opts.early_stopping_thr,
+        validation=True
+    )
 
     trainer = core.Trainer(
         game=game,
@@ -391,7 +417,7 @@ def main(params: List[str]):
             early_stopper,
             metrics_evaluator,
             holdout_evaluator,
-            DumpCorpus(loaders, device=opts.device),
+            dump_corpus,
         ],
     )
     trainer.train(n_epochs=opts.n_epochs)
