@@ -384,8 +384,8 @@ def main(params: List[str]):
     dump_corpus = DumpCorpus(
         [
             (
-                "train",
-                train_loader,
+                "validation",
+                validation_loader,
                 DiffLoss(opts.n_attributes, opts.n_values),
             ),
             (
