@@ -33,7 +33,7 @@ from egg.zoo.compo_vs_generalization.data import (
     one_hotify,
     split_train_test,
 )
-from egg.zoo.compo_vs_generalization.intervention import Evaluator, Metrics
+from egg.zoo.compo_vs_generalization.intervention import Evaluator
 
 
 def get_params(params: List[str]):
@@ -306,15 +306,6 @@ def main(params: List[str]):
     )
     optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
 
-    metrics_evaluator = Metrics(
-        validation_dataset.examples,
-        opts.device,
-        opts.n_attributes,
-        opts.n_values,
-        opts.vocab_size + 1,
-        freq=opts.stats_freq,
-    )
-
     holdout_evaluator = Evaluator(
         [
             (
@@ -357,7 +348,6 @@ def main(params: List[str]):
         callbacks=[
             core.ConsoleLogger(as_json=True, print_train_loss=False),
             early_stopper,
-            metrics_evaluator,
             holdout_evaluator,
             dump_corpus,
         ],
