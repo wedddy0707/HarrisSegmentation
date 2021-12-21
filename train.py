@@ -227,6 +227,7 @@ class DumpCorpus(core.Callback):
         self.trainer = trainer_instance
         self.epoch_counter: int = self.trainer.start_epoch
         self.__dump(mode='dataset')
+        self.__dump(mode='language')
 
     def on_epoch_end(self, *stuff: Any):  # type: ignore
         self.epoch_counter += 1
