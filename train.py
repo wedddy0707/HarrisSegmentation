@@ -159,10 +159,14 @@ class DumpCorpus(core.Callback):
     def __init__(
         self,
         loaders_metrics: List[Tuple[str, DataLoader[Tuple[Optional[torch.Tensor], ...]], torch.nn.Module]],
+        n_attributes: int,
+        n_values: int,
         device: torch.device,
         freq: int = 1,
     ):
         self.loaders_metrics = loaders_metrics
+        self.n_attributes = n_attributes
+        self.n_values = n_values
         self.device = device
         self.freq = freq
 
@@ -202,7 +206,10 @@ class DumpCorpus(core.Callback):
                     [split_name] * batch_size
                 )
                 data['sender_input'].extend(
-                    interaction.sender_input.argmax(dim=-1).tolist()
+                    interaction.sender_input
+                    .view(batch_size, self.n_attributes, self.n_values)
+                    .argmax(dim=-1)
+                    .tolist()
                 )
                 data['message'].extend(
                     interaction.message.tolist()
@@ -332,6 +339,8 @@ def main(params: List[str]):
                 DiffLoss(opts.n_attributes, opts.n_values),
             ),
         ],
+        opts.n_attributes,
+        opts.n_values,
         device=opts.device,
         freq=1,
     )
