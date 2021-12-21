@@ -31,7 +31,6 @@ from egg.zoo.compo_vs_generalization.data import (
     ScaledDataset,
     enumerate_attribute_value,
     one_hotify,
-    split_holdout,
     split_train_test,
 )
 from egg.zoo.compo_vs_generalization.intervention import Evaluator, Metrics
@@ -96,12 +95,10 @@ class DiffLoss(torch.nn.Module):
         self,
         n_attributes: int,
         n_values:     int,
-        generalization: bool = False,
     ):
         super().__init__()
         self.n_attributes = n_attributes
         self.n_values = n_values
-        self.test_generalization = generalization
 
     def forward(
         self,
@@ -113,87 +110,33 @@ class DiffLoss(torch.nn.Module):
         _aux_input:      Optional[Dict[str, torch.Tensor]],
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         batch_size = sender_input.size(0)
-        device = sender_input.device
         sender_input = sender_input.view(batch_size, self.n_attributes, self.n_values)
         receiver_output = receiver_output.view(
             batch_size, self.n_attributes, self.n_values
         )
 
-        if self.test_generalization:
-            acc = torch.as_tensor(0, dtype=torch.float, device=device)
-            acc_or = torch.as_tensor(0, dtype=torch.float, device=device)
-            loss = torch.as_tensor(0, dtype=torch.float, device=device)
-
-            for attr in range(self.n_attributes):
-                zero_index = torch.nonzero(sender_input[:, attr, 0]).squeeze()
-                masked_size = zero_index.size(0)
-                masked_input = torch.index_select(sender_input, 0, zero_index)
-                masked_output = torch.index_select(receiver_output, 0, zero_index)
-
-                no_attribute_input = torch.cat(
-                    [masked_input[:, :attr, :], masked_input[:, attr + 1:, :]], dim=1
-                )
-                no_attribute_output = torch.cat(
-                    [masked_output[:, :attr, :], masked_output[:, attr + 1:, :]], dim=1
-                )
-
-                n_attributes = self.n_attributes - 1
-                attr_acc = (
-                    (
-                        (
-                            no_attribute_output.argmax(dim=-1)
-                            == no_attribute_input.argmax(dim=-1)
-                        ).sum(dim=1)
-                        == n_attributes
-                    )
-                    .float()
-                    .mean()
-                )
-                acc += attr_acc
-
-                attr_acc_or = (
-                    (
-                        no_attribute_output.argmax(dim=-1)
-                        == no_attribute_input.argmax(dim=-1)
-                    )
-                    .float()
-                    .mean()
-                )
-                acc_or += attr_acc_or
-                labels = no_attribute_input.argmax(dim=-1).view(
-                    masked_size * n_attributes
-                )
-                predictions = no_attribute_output.view(
-                    masked_size * n_attributes, self.n_values
-                )
-                # NB: THIS LOSS IS NOT SUITABLY SHAPED TO BE USED IN REINFORCE TRAINING!
-                loss += F.cross_entropy(predictions, labels, reduction="mean")
-
-            acc = acc / self.n_attributes
-            acc_or = acc_or / self.n_attributes
-        else:
-            acc = (
-                torch.sum(
-                    (
-                        receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
-                    ).detach(),
-                    dim=1,
-                )
-                == self.n_attributes
-            ).float()
-            acc_or = (
-                receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
-            ).float()
-
-            receiver_output = receiver_output.view(
-                batch_size * self.n_attributes, self.n_values
+        acc = (
+            torch.sum(
+                (
+                    receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
+                ).detach(),
+                dim=1,
             )
-            labels = sender_input.argmax(dim=-1).view(batch_size * self.n_attributes)
-            loss = (
-                F.cross_entropy(receiver_output, labels, reduction="none")
-                .view(batch_size, self.n_attributes)
-                .mean(dim=-1)
-            )
+            == self.n_attributes
+        ).float()
+        acc_or = (
+            receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
+        ).float()
+
+        receiver_output = receiver_output.view(
+            batch_size * self.n_attributes, self.n_values
+        )
+        labels = sender_input.argmax(dim=-1).view(batch_size * self.n_attributes)
+        loss = (
+            F.cross_entropy(receiver_output, labels, reduction="none")
+            .view(batch_size, self.n_attributes)
+            .mean(dim=-1)
+        )
 
         return loss, {"acc": acc, "acc_or": acc_or}
 
@@ -287,30 +230,27 @@ def main(params: List[str]):
     assert not hasattr(opts, 'mode')
     print(json.dumps(dict(mode='config', **vars(opts)), default=repr))
 
-    full_data = enumerate_attribute_value(
+    full_list = enumerate_attribute_value(
         opts.n_attributes, opts.n_values
     )
-    train, generalization_holdout = split_holdout(full_data)
-    train, uniform_holdout = split_train_test(train, 0.1)
+    train_list, test_list = split_train_test(full_list, 0.1)
 
-    generalization_holdout, train, uniform_holdout, full_data = map(
+    train_tensors, test_tensors, full_tensors = map(
         lambda x: one_hotify(x, opts.n_attributes, opts.n_values),
-        (generalization_holdout, train, uniform_holdout, full_data),
+        (train_list, test_list, full_list),
     )
-    train, validation = (
-        ScaledDataset(train, opts.data_scaler),
-        ScaledDataset(train, 1),
+    train_dataset, validation_dataset, test_dataset, full_dataset = (
+        ScaledDataset(train_tensors, opts.data_scaler),
+        ScaledDataset(train_tensors, 1),
+        ScaledDataset(test_tensors, 1),
+        ScaledDataset(full_tensors, 1),
     )
-    generalization_holdout, uniform_holdout, full_data = map(
-        ScaledDataset,
-        (generalization_holdout, uniform_holdout, full_data),
+    train_loader, validation_loader, test_loader, _ = (
+        DataLoader(train_dataset,      batch_size=opts.batch_size, shuffle=True),
+        DataLoader(validation_dataset, batch_size=opts.batch_size),
+        DataLoader(test_dataset,       batch_size=opts.batch_size),
+        DataLoader(full_dataset,       batch_size=opts.batch_size),
     )
-    generalization_holdout_loader, uniform_holdout_loader, _ = map(
-        lambda x: DataLoader(x, batch_size=opts.batch_size),
-        (generalization_holdout, uniform_holdout, full_data),
-    )
-    train_loader = DataLoader(train, batch_size=opts.batch_size)
-    validation_loader = DataLoader(validation, batch_size=len(validation))
 
     n_dim = opts.n_attributes * opts.n_values
 
@@ -360,7 +300,7 @@ def main(params: List[str]):
     optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
 
     metrics_evaluator = Metrics(
-        validation.examples,
+        validation_dataset.examples,
         opts.device,
         opts.n_attributes,
         opts.n_values,
@@ -371,14 +311,9 @@ def main(params: List[str]):
     holdout_evaluator = Evaluator(
         [
             (
-                "uniform-holdout",
-                uniform_holdout_loader,
+                "test",
+                test_loader,
                 DiffLoss(opts.n_attributes, opts.n_values),
-            ),
-            (
-                "generalization-holdout",
-                generalization_holdout_loader,
-                DiffLoss(opts.n_attributes, opts.n_values, generalization=True),
             ),
         ],
         opts.device,
@@ -392,14 +327,9 @@ def main(params: List[str]):
                 DiffLoss(opts.n_attributes, opts.n_values),
             ),
             (
-                "uniform-holdout",
-                uniform_holdout_loader,
+                "test",
+                test_loader,
                 DiffLoss(opts.n_attributes, opts.n_values),
-            ),
-            (
-                "generalization-holdout",
-                generalization_holdout_loader,
-                DiffLoss(opts.n_attributes, opts.n_values, generalization=True),
             ),
         ],
         device=opts.device,
