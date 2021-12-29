@@ -36,6 +36,21 @@ from egg.zoo.compo_vs_generalization.data import (
 from egg.zoo.compo_vs_generalization.intervention import Evaluator
 
 
+def s2b(s: str):
+    EXP_FOR_TRUE = {"true", "t", "yes", "y", "1"}
+    EXP_FOR_FALSE = {"false", "f", "no", "n", "0"}
+    s = s.lower()
+    if s in EXP_FOR_TRUE:
+        return True
+    elif s in EXP_FOR_FALSE:
+        return False
+    else:
+        raise ValueError(
+            f"Unknown Literal {s}. "
+            f"If you mean \"True\", then use one of {EXP_FOR_TRUE}. "
+            f"Otherwise use one of {EXP_FOR_FALSE}."
+        )
+
 def get_params(params: List[str]):
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_attributes", type=int, default=4, help="")
@@ -84,6 +99,12 @@ def get_params(params: List[str]):
         type=float,
         default=0.99999,
         help="Early stopping threshold on accuracy (defautl: 0.99999)",
+    )
+    parser.add_argument(
+        "--variable_length",
+        type=s2b,
+        default=False,
+        help="",
     )
 
     args = core.init(arg_parser=parser, params=params)
@@ -286,7 +307,8 @@ def main(params: List[str]):
     else:
         raise ValueError(f"Unknown sender cell, {opts.sender_cell}")
 
-    sender = PlusOneWrapper(sender)
+    if not opts.variable_length:
+        sender = PlusOneWrapper(sender)
     loss = DiffLoss(opts.n_attributes, opts.n_values)
 
     baseline = {
