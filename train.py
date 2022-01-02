@@ -261,7 +261,7 @@ def main(params: List[str]):
     full_list = enumerate_attribute_value(
         opts.n_attributes, opts.n_values
     )
-    train_list, test_list = split_train_test(full_list, 0.1)
+    train_list, test_list = split_train_test(full_list, 0)
 
     train_tensors, test_tensors, full_tensors = map(
         lambda x: one_hotify(x, opts.n_attributes, opts.n_values),
@@ -328,17 +328,17 @@ def main(params: List[str]):
     )
     optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
 
-    holdout_evaluator = Evaluator(
-        [
-            (
-                "test",
-                test_loader,
-                DiffLoss(opts.n_attributes, opts.n_values),
-            ),
-        ],
-        opts.device,
-        freq=0,
-    )
+    # holdout_evaluator = Evaluator(
+    #     [
+    #         (
+    #             "test",
+    #             test_loader,
+    #             DiffLoss(opts.n_attributes, opts.n_values),
+    #         ),
+    #     ],
+    #     opts.device,
+    #     freq=0,
+    # )
     dump_corpus = DumpCorpus(
         [
             (
@@ -370,7 +370,7 @@ def main(params: List[str]):
         callbacks=[
             core.ConsoleLogger(as_json=True, print_train_loss=False),
             early_stopper,
-            holdout_evaluator,
+            # holdout_evaluator,
             dump_corpus,
         ],
     )
