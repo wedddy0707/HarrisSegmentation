@@ -8,6 +8,7 @@ from typing import (
     Literal,
 )
 from collections import defaultdict
+import copy
 import argparse
 import json
 import torch
@@ -261,7 +262,9 @@ def main(params: List[str]):
     full_list = enumerate_attribute_value(
         opts.n_attributes, opts.n_values
     )
-    train_list, test_list = split_train_test(full_list, 0)
+    # train_list, test_list = split_train_test(full_list, 0.1)
+    train_list = copy.deepcopy(full_list)
+    test_list: List[Tuple[int, ...]] = []
 
     train_tensors, test_tensors, full_tensors = map(
         lambda x: one_hotify(x, opts.n_attributes, opts.n_values),
