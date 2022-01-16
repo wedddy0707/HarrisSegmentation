@@ -13,6 +13,7 @@ import argparse
 import json
 import torch
 import torch.nn.functional as F
+import sys
 from torch.utils.data import DataLoader
 
 import egg.core as core
@@ -385,6 +386,4 @@ def main(params: List[str]):
 
 
 if __name__ == "__main__":
-    import sys
-
     main(sys.argv[1:])
