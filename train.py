@@ -37,6 +37,8 @@ from egg.zoo.compo_vs_generalization.data import (
 )
 from egg.zoo.compo_vs_generalization.intervention import Evaluator
 
+from ease_of_teaching import PeriodicAgentResetter
+
 
 def s2b(s: str):
     EXP_FOR_TRUE = {"true", "t", "yes", "y", "1"}
@@ -106,6 +108,18 @@ def get_params(params: List[str]):
         "--variable_length",
         type=s2b,
         default=False,
+        help="",
+    )
+    parser.add_argument(
+        "--sender_life_span",
+        type=int,
+        default=0,
+        help="",
+    )
+    parser.add_argument(
+        "--receiver_life_span",
+        type=int,
+        default=0,
         help="",
     )
 
@@ -365,6 +379,10 @@ def main(params: List[str]):
         opts.early_stopping_thr,
         validation=True
     )
+    agent_resetter = PeriodicAgentResetter(
+        opts.sender_life_span,
+        opts.receiver_life_span,
+    )
 
     trainer = core.Trainer(
         game=game,
@@ -376,6 +394,7 @@ def main(params: List[str]):
             early_stopper,
             # holdout_evaluator,
             dump_corpus,
+            agent_resetter,
         ],
     )
     trainer.train(n_epochs=opts.n_epochs)
