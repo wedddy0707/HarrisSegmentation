@@ -266,7 +266,7 @@ def main(params: List[str]):
         n_values=opts.n_values,
         p_hold_out=0.0,
         n_guessable_attributes=opts.n_guessable_attributes,
-        scaling_factor=opts.scaling_factor,
+        scaling_factor=opts.data_scaler,
     )
     trn_loader, vld_loader, tst_loader, _ = (
         DataLoader(trn_dataset, batch_size=opts.batch_size, shuffle=True),
