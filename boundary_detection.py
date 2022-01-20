@@ -277,9 +277,9 @@ class EntropyCalculator(Generic[T_EntrCalc]):
             for data, boundaries in zip(self.data, self.boundaries):
                 segs.append([])
                 bot = 0
-                for up in boundaries:
-                    word = data[bot:up + 1]
-                    bot = up + 1
+                for up in sorted(boundaries):
+                    word = data[bot:up]
+                    bot = up
                     segs[-1].append(word)
             self.__segmentations = [tuple(x) for x in segs]
         return self.__segmentations
