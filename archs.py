@@ -26,10 +26,9 @@ class Receiver(nn.Module):
         input: Optional[torch.Tensor],
         _aux_input: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        if input is None:
+        if input is None or self.fc2 is None:
             return self.fc1(x)
         else:
-            assert self.fc2 is not None
             return self.fc1(x) + self.fc2(input)
 
 
