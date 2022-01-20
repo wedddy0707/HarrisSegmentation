@@ -73,12 +73,12 @@ class ScaledDataset(Dataset[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
         tst_dataset = cls(
             one_hotify(tst_list, n_values),
             one_hotify(tst_guessable_list, n_values),
-            scaling_factor=scaling_factor,
+            scaling_factor=1,
         )
         all_dataset = cls(
             one_hotify(all_list, n_values),
             one_hotify(all_guessable_list, n_values),
-            scaling_factor=scaling_factor,
+            scaling_factor=1,
         )
         return trn_dataset, vld_dataset, tst_dataset, all_dataset
 
