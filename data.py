@@ -58,7 +58,7 @@ class ScaledDataset(Dataset[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
 
         trn_guessable_list = [e[:n_guessable_attributes] for e in trn_list]
         tst_guessable_list = [e[:n_guessable_attributes] for e in tst_list]
-        all_guessable_list = [e[:n_guessable_attributes] for e in tst_list]
+        all_guessable_list = [e[:n_guessable_attributes] for e in all_list]
 
         trn_dataset = cls(
             one_hotify(trn_list, n_values),
