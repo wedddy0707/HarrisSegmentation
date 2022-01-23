@@ -8,7 +8,6 @@ from typing import (
     Literal,
 )
 from collections import defaultdict
-import copy
 import argparse
 import json
 import torch
@@ -29,14 +28,10 @@ from egg.zoo.compo_vs_generalization.archs import (
     Receiver,
     Sender,
 )
-from egg.zoo.compo_vs_generalization.data import (
-    ScaledDataset,
-    enumerate_attribute_value,
-    one_hotify,
-    split_train_test,
-)
 from egg.zoo.compo_vs_generalization.intervention import Evaluator
 
+from data import ScaledDataset
+from archs import Sender, Receiver, PlusOneWrapper
 from ease_of_teaching import PeriodicAgentResetter
 
 
@@ -122,6 +117,12 @@ def get_params(params: List[str]):
         default=0,
         help="",
     )
+    parser.add_argument(
+        "--n_guessable_attributes",
+        type=int,
+        default=0,
+        help="",
+    )
 
     args = core.init(arg_parser=parser, params=params)
     return args
@@ -176,20 +177,6 @@ class DiffLoss(torch.nn.Module):
         )
 
         return loss, {"acc": acc, "acc_or": acc_or}
-
-
-class PlusOneWrapper(torch.nn.Module):
-    def __init__(self, wrapped: torch.nn.Module):
-        super().__init__()
-        self.wrapped = wrapped
-
-    def forward(
-        self,
-        *input: Tuple[Optional[torch.Tensor], ...],
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        r1, r2, r3 = self.wrapped(*input)
-        r1 = r1[:, :-1]
-        return r1 + 1, r2, r3
 
 
 class DumpCorpus(core.Callback):
@@ -274,34 +261,28 @@ def main(params: List[str]):
     assert not hasattr(opts, 'mode')
     print(json.dumps(dict(mode='config', **vars(opts)), default=repr))
 
-    full_list = enumerate_attribute_value(
-        opts.n_attributes, opts.n_values
+    trn_dataset, vld_dataset, tst_dataset, all_dataset = ScaledDataset.create_train_test_data(
+        n_attributes=opts.n_attributes,
+        n_values=opts.n_values,
+        p_hold_out=0.0,
+        n_guessable_attributes=opts.n_guessable_attributes,
+        scaling_factor=opts.data_scaler,
     )
-    # train_list, test_list = split_train_test(full_list, 0.1)
-    train_list = copy.deepcopy(full_list)
-    test_list: List[Tuple[int, ...]] = []
-
-    train_tensors, test_tensors, full_tensors = map(
-        lambda x: one_hotify(x, opts.n_attributes, opts.n_values),
-        (train_list, test_list, full_list),
-    )
-    train_dataset, validation_dataset, test_dataset, full_dataset = (
-        ScaledDataset(train_tensors, opts.data_scaler),
-        ScaledDataset(train_tensors, 1),
-        ScaledDataset(test_tensors, 1),
-        ScaledDataset(full_tensors, 1),
-    )
-    train_loader, validation_loader, test_loader, _ = (
-        DataLoader(train_dataset,      batch_size=opts.batch_size, shuffle=True),
-        DataLoader(validation_dataset, batch_size=opts.batch_size),
-        DataLoader(test_dataset,       batch_size=opts.batch_size),
-        DataLoader(full_dataset,       batch_size=opts.batch_size),
+    trn_loader, vld_loader, tst_loader, _ = (
+        DataLoader(trn_dataset, batch_size=opts.batch_size, shuffle=True),
+        DataLoader(vld_dataset, batch_size=opts.batch_size),
+        DataLoader(tst_dataset, batch_size=opts.batch_size),
+        DataLoader(all_dataset, batch_size=opts.batch_size),
     )
 
     n_dim = opts.n_attributes * opts.n_values
 
     if opts.receiver_cell in ["lstm", "rnn", "gru"]:
-        receiver = Receiver(n_hidden=opts.receiver_hidden, n_outputs=n_dim)
+        receiver = Receiver(
+            n_outputs=n_dim,
+            n_hidden=opts.receiver_hidden,
+            n_inputs=opts.n_guessable_attributes * opts.n_values,
+        )
         receiver = core.RnnReceiverDeterministic(
             receiver,
             opts.vocab_size + 1,
@@ -361,12 +342,12 @@ def main(params: List[str]):
         [
             (
                 "validation",
-                validation_loader,
+                vld_loader,
                 DiffLoss(opts.n_attributes, opts.n_values),
             ),
             (
                 "test",
-                test_loader,
+                tst_loader,
                 DiffLoss(opts.n_attributes, opts.n_values),
             ),
         ],
@@ -387,8 +368,8 @@ def main(params: List[str]):
     trainer = core.Trainer(
         game=game,
         optimizer=optimizer,
-        train_data=train_loader,
-        validation_data=validation_loader,
+        train_data=trn_loader,
+        validation_data=vld_loader,
         callbacks=[
             core.ConsoleLogger(as_json=True, print_train_loss=False),
             early_stopper,
