@@ -323,6 +323,81 @@ class Plotter:
             figname = "number_of_hypothetical_boundaries.png"
         plt.savefig(self.img_dir / figname , bbox_inches='tight')
 
+    def plot_zla(
+        self,
+        figname: Optional[Union[str, pathlib.Path]] = None,
+        threshold: float = 0,
+        max_rank: int = 400,
+        label_format: str = '$(n_{{att}},n_{{val}})={}$',
+        verbose: bool = False,
+    ):
+        def get_distr(lang_data: List[Tuple[int, ...]]):
+            freqs: List[int] = []
+            freq_to_lens: defaultdict[int, List[int]] = defaultdict(list)
+            for word, freq in (
+                Counter(
+                    itertools.chain.from_iterable(
+                        EntropyCalculator(
+                            lang_data,
+                            threshold=threshold,
+                        )
+                        .segmentations
+                    )
+                )
+                .most_common()
+            ):
+                freqs.append(freq)
+                freq_to_lens[freq].append(len(word))
+            return [
+                np.mean(freq_to_lens[freq])
+                for freq in freqs
+            ]
+
+        trained_data_list:   List[List[float]] = []
+        untrained_data_list: List[List[float]] = []
+        for attval, log_files in self.log_files.items():
+            if verbose:
+                print(f'{self.__class__}: {attval}')
+            for log in log_files:
+                try:
+                    trained_lang_data = self.__get_trained_language(log)
+                    untrained_lang_data = self.__get_untrained_language(log)
+                except Exception as e:
+                    print(f"Exception caught: {e}")
+                    continue
+                trained_data_list.append(get_distr(trained_lang_data))
+                untrained_data_list.append(get_distr(untrained_lang_data))
+        trained_plot_data = [
+            np.mean([e for e in x if e is not None])
+            for x in zip(*trained_data_list)
+        ][:max_rank]
+        untrained_plot_data = [
+            np.mean([e for e in x if e is not None])
+            for x in zip(*untrained_data_list)
+        ][:max_rank]
+        fig, ax = plt.subplots(
+            1,
+            1,
+            sharex=True,
+            sharey=True,
+        )
+        ax.plot(
+            range(1, 1 + len(trained_plot_data)),
+            trained_plot_data,
+            label="Trained",
+        )
+        ax.plot(
+            range(1, 1 + len(untrained_plot_data)),
+            untrained_plot_data,
+            label="Untrained",
+        )
+        ax.legend()
+        ax.set_xlabel('Frequency Rank')
+        ax.set_ylabel('Word Length')
+        if figname is None:
+            figname = f'zla_thr{threshold}_hie1.png'
+        fig.savefig(self.img_dir / figname , bbox_inches='tight')
+
     def plot_zipf(
         self,
         figname: Optional[Union[str, pathlib.Path]] = None,
