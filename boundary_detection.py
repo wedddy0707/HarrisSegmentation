@@ -27,6 +27,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 # import matplotlib.cm as cm
+from logfile_reader import LogFile, get_logfiles
 
 
 T_EntrCalc = TypeVar('T_EntrCalc', bound=Hashable)
