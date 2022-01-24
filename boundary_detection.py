@@ -1,18 +1,13 @@
 import sys
-import argparse
 import itertools
-import json
 import math
 import pathlib
-import yaml
 from collections import Counter, defaultdict
 from typing import (
-    Any,
     Dict,
     Generic,
     List,
     Literal,
-    NamedTuple,
     Hashable,
     Optional,
     Tuple,
@@ -22,11 +17,9 @@ from typing import (
     Union,
 )
 
-import pandas as pd
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-# import matplotlib.cm as cm
 from logfile_reader import LogFile, get_logfiles
 from config_reader import get_params
 
@@ -209,10 +202,6 @@ class EntropyCalculator(Generic[T_EntrCalc]):
         return self.__kempe_entropy
 
 
-def mean(x: Sequence[Union[float, int]]) -> float:
-    return float(np.mean(x))  # type: ignore
-
-
 class Plotter:
     log_files: Dict[Hashable, List[LogFile]]
     least_acc: Optional[float]
@@ -276,6 +265,7 @@ class Plotter:
     def plot_n_boundaries_over_thresholds(
         self,
         figname: Optional[Union[str, pathlib.Path]] = None,
+        label_format: str = '$(a,v,g)={}$',
         verbose: bool = False,
     ) -> None:
         stop_x = 2
@@ -288,7 +278,7 @@ class Plotter:
             for log in log_files:
                 try:
                     y_data[attval].append([
-                        mean(
+                        np.mean(
                             EntropyCalculator(
                                 self.__get_trained_language(log),
                                 threshold=x
@@ -312,9 +302,7 @@ class Plotter:
                 marker=self.markers[i],
                 fillstyle="none",
                 linestyle="--",
-                label=(
-                    f'$(a,v)={attval}$'
-                ),
+                label=label_format.format(attval),
             )
         ax.legend()
         ax.set_xlabel('threshold')
@@ -407,6 +395,7 @@ class Plotter:
         window_size_for_moving_average: int = 1,
         n_repetitions_of_boundary_detection: int = 1,
         remove_hapax_legomena: bool = False,
+        label_format: str = '$(a,v,g)={}$',
         verbose: bool = False,
     ) -> None:
         fig, ax = plt.subplots(
@@ -443,7 +432,7 @@ class Plotter:
                     plot_data = [
                         freq
                         if mode == "zipf"
-                        else mean(lengths_grouped_by_freq[freq])
+                        else np.mean(lengths_grouped_by_freq[freq])
                         for _, freq in len_and_freq
                     ]
                     plot_data = (
@@ -452,13 +441,13 @@ class Plotter:
                         [plot_data[-1]] * (window_size_for_moving_average // 2)
                     )
                     plot_data = [
-                        mean(plot_data[i:i + window_size_for_moving_average])
+                        np.mean(plot_data[i:i + window_size_for_moving_average])
                         for i in range(len(plot_data) - window_size_for_moving_average)
                     ]
                     ax.plot(
                         range(1, 1 + len(plot_data)),
                         plot_data,
-                        label=f'(n_att,n_val)={attval}',
+                        label=label_format.format(attval),
                     )
                 except Exception as e:
                     print(f"Exception caught: ({e})")
@@ -469,7 +458,7 @@ class Plotter:
             ax.set_yscale('log')
             ax.set_ylabel('Frequency')
         else:
-            # ax.set_xscale('log')
+            ax.set_xscale('log')
             ax.set_ylabel('Word Length')
         fig.suptitle(
             f'{mode.upper()} Plot '
@@ -482,7 +471,7 @@ class Plotter:
 
     def plot_entropy_conditioned_on_length(
         self,
-        label_format: str = '$(a,v)={}$',
+        label_format: str = '$(a,v,g)={}$',
         figname: Optional[Union[str, pathlib.Path]] = None,
         verbose: bool = False,
     ) -> None:
@@ -539,7 +528,7 @@ class Plotter:
                         # marker="+",
                     )
                 except Exception as e:
-                    print(f"Exception caught: ({e}).")
+                    print(f"Exception caught: {e}")
         ax.legend()
         ax.set_xlabel('$n$')
         ax.set_ylabel('$H(n)$')
@@ -693,8 +682,20 @@ def main(params: Sequence[str]):
     # plotter.plot_n_boundaries_over_thresholds(
     #     verbose=True,
     # )
-    plotter.plot_sample_utterance(
-        key=(2, 64),
+    # plotter.plot_sample_utterance(
+    #     key=(2, 64),
+    #     verbose=True,
+    # )
+    # plotter.plot_zipf(
+    #     threshold=1.25,
+    #     mode="zipf",
+    # )
+    # plotter.plot_zipf(
+    #     threshold=1.25,
+    #     mode="zla",
+    # )
+    plotter.plot_zla(
+        threshold=0,
         verbose=True,
     )
 
