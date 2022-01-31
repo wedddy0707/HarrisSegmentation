@@ -194,17 +194,22 @@ class DumpCorpus(core.Callback):
         self.device = device
         self.freq = freq
 
-    def on_train_begin(self, trainer_instance: Any):
+    def on_train_begin(
+        self,
+        trainer_instance: core.Trainer
+    ):
         self.trainer = trainer_instance
-        self.epoch_counter: int = self.trainer.start_epoch
-        self.__dump(mode='dataset')
-        self.__dump(mode='language')
+        self.epoch = self.trainer.start_epoch
+        self.__dump(mode="dataset")
+        self.__dump(mode="language", epoch=self.epoch)
 
-    def on_epoch_end(self, *stuff: Any):  # type: ignore
-        self.epoch_counter += 1
-        if self.freq <= 0 or self.epoch_counter % self.freq != 0:
-            return
-        self.__dump(mode='language')
+    def on_train_end(self):
+        self.__dump(mode="language", epoch=self.epoch)
+
+    def on_epoch_end(self, loss: float, logs: Interaction, epoch: int):
+        self.epoch = epoch
+        if self.freq > 0 and epoch % self.freq == 0:
+            self.__dump(mode="language", epoch=epoch)
 
     def __collect_data(self):
         data: "defaultdict[Literal['split', 'sender_input', 'message', 'acc'], List[Any]]" = defaultdict(list)
@@ -242,8 +247,14 @@ class DumpCorpus(core.Callback):
         game.train()
         return data
 
-    def __dump(self, mode: Literal['dataset', 'language']):
-        assert mode in {'dataset', 'language'}, mode
+    def __dump(
+        self,
+        mode: Literal["dataset", "language"],
+        epoch: Optional[int] = None,
+    ):
+        assert mode in {"dataset", "language"}, mode
+        if mode == "language":
+            assert epoch is not None
         keys = ('sender_input', 'split') if mode == 'dataset' else ('message', 'acc')
         output: Dict[str, Union[str, int, Dict[str, Any]]] = dict(
             mode=mode,
@@ -251,8 +262,8 @@ class DumpCorpus(core.Callback):
                 k: v for k, v in self.__collect_data().items() if k in keys
             },
         )
-        if mode == 'language':
-            output['epoch'] = self.epoch_counter
+        if epoch is not None:
+            output['epoch'] = epoch
         print(json.dumps(output).replace(' ', ''), flush=True)
 
 
@@ -354,7 +365,7 @@ def main(params: List[str]):
         opts.n_attributes,
         opts.n_values,
         device=opts.device,
-        freq=1,
+        freq=0,
     )
     early_stopper = EarlyStopperAccuracy(
         opts.early_stopping_thr,
