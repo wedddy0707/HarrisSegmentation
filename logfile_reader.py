@@ -113,5 +113,6 @@ def get_logfiles(
                 # int(config.n_guessable_attributes),
             )
             log_files[key].append(log_file)
+            print(f"{key}, {config.random_seed}, {log_file.max_epoch}")
     return log_files
         
