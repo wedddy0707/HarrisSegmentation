@@ -171,7 +171,7 @@ class EntropyCalculator(Generic[T]):
         return self.__boundaries
 
     @property
-    def segments(self) -> List[Tuple[Tuple[T, ...], ...]]:
+                        width = 2
         if self.__segments is None:
             segs: List[List[Tuple[T, ...]]] = []
             for data, boundaries in zip(self.data, self.boundaries):
