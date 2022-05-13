@@ -9,6 +9,7 @@ from typing import (Dict, Generic, Hashable, List, Literal, Optional, Sequence,
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 from config_reader import get_params
 from logfile_reader import LogFile, get_logfiles
@@ -159,6 +160,10 @@ class EntropyCalculator(Generic[T]):
                 self.__boundaries.append(set())
                 start: int = 0
                 width: int = 2
+                """
+                We begin with width=2, while the algorithm in the paper begins with width=1.
+                It is because this code block assumes that self.branching_entropy is already computed.
+                """
                 while start < len(d):
                     context = d[start:start + width]
                     if self.branching_entropy[context] - self.branching_entropy[context[:-1]] > self.threshold:
@@ -167,11 +172,11 @@ class EntropyCalculator(Generic[T]):
                         width = 1 + width
                     else:
                         start = 1 + start
-                        width = 1
+                        width = 2
         return self.__boundaries
 
     @property
-                        width = 2
+    def segments(self) -> List[Tuple[Tuple[T, ...], ...]]:
         if self.__segments is None:
             segs: List[List[Tuple[T, ...]]] = []
             for data, boundaries in zip(self.data, self.boundaries):
@@ -362,11 +367,21 @@ class Plotter:
         ax = fig.add_subplot(111)
         for thr, attval_to_data_list in thr_to_attval_to_data_list.items():
             data_lists = list(attval_to_data_list.values())
+            x: npt.NDArray[np.int_] = np.arange(len(data_lists))
+            y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
+            y_sem: npt.NDArray[np.float_] = np.array([np.std(x, ddof=1) / np.sqrt(np.size(x)) for x in data_lists])
             ax.plot(
-                range(len(data_lists)),
-                [sum(x) / len(x) for x in data_lists],
+                x,
+                y,
                 marker="x",
                 label=threshold_format.format(thr),
+            )
+            ax.fill_between(
+                x,
+                y - y_sem,
+                y + y_sem,
+                color=ax.get_lines()[-1].get_color(),
+                alpha=0.3,
             )
         ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
         ax.set_xticks(list(range(len(self.log_files.keys()))))
@@ -408,11 +423,21 @@ class Plotter:
         ax = fig.add_subplot(111)
         for thr, attval_to_data_list in thr_to_attval_to_data_list.items():
             data_lists = list(attval_to_data_list.values())
+            x: npt.NDArray[np.int_] = np.arange(len(data_lists))
+            y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
+            y_sem: npt.NDArray[np.float_] = np.array([np.std(x, ddof=1) / np.sqrt(np.size(x)) for x in data_lists])
             ax.plot(
-                range(len(data_lists)),
-                [sum(x) / len(x) for x in data_lists],
+                x,
+                y,
                 marker="x",
                 label=threshold_format.format(thr),
+            )
+            ax.fill_between(
+                x,
+                y - y_sem,
+                y + y_sem,
+                color=ax.get_lines()[-1].get_color(),
+                alpha=0.3,
             )
         ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
         ax.set_xticks(list(range(len(self.log_files.keys()))))
@@ -828,9 +853,9 @@ def main(params: Sequence[str]):
     plt.rcParams["font.size"] = 14  # 18
     # plotter.plot_conditional_entropy()
     # plotter.plot_sample_utterances(key=(2, 64), threshold=1.25, random_seed=1)
-    # plotter.plot_n_hypothetical_boundaries()
+    plotter.plot_n_hypothetical_boundaries()
     # plotter.plot_vocab_size()
-    plotter.plot_topsim()
+    # plotter.plot_topsim()
     # for thr in [1.0, 1.25]:
     #     for seed in [0, 1, 2, 3, 4, 5]:
     #         plotter.plot_sample_utterances(key=(2, 64), threshold=thr, random_seed=seed)
