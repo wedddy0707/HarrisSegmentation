@@ -159,6 +159,10 @@ class EntropyCalculator(Generic[T]):
                 self.__boundaries.append(set())
                 start: int = 0
                 width: int = 2
+                """
+                We begin with width=2, while the algorithm in the paper begins with width=1.
+                It is because this code block assumes that self.branching_entropy is already computed.
+                """
                 while start < len(d):
                     context = d[start:start + width]
                     if self.branching_entropy[context] - self.branching_entropy[context[:-1]] > self.threshold:
@@ -167,7 +171,7 @@ class EntropyCalculator(Generic[T]):
                         width = 1 + width
                     else:
                         start = 1 + start
-                        width = 2
+                        width = 1
         return self.__boundaries
 
     @property
