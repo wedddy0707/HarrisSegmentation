@@ -167,7 +167,7 @@ class EntropyCalculator(Generic[T]):
                         width = 1 + width
                     else:
                         start = 1 + start
-                        width = 1
+                        width = 2
         return self.__boundaries
 
     @property
