@@ -10,6 +10,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import itertools
 
 from config_reader import get_params
 from logfile_reader import LogFile, get_logfiles
@@ -262,6 +263,13 @@ class EntropyCalculator(Generic[T]):
         return len(self.segment_ids)
 
 
+def standard_error_of_mean(
+    x: Union[npt.NDArray[np.float_], Sequence[float]]
+) -> npt.NDArray[np.float_]:
+    x = np.array(x)
+    return np.std(x, ddof=1) / np.sqrt(np.size(x))
+
+
 class Plotter:
     log_files: Dict[Hashable, List[LogFile]]
     least_acc: Optional[float]
@@ -341,7 +349,7 @@ class Plotter:
         attval_format: str = '${}$',
         threshold_format: str = '$threshold={}$',
         xlabel: str = "$(n_{{att}},n_{{val}})$ Configuration",
-        ylabel: str = "# Hypothetical Boundaries per Message",
+        ylabel: str = "Mean # Hypo-boundaries per Message",
     ) -> None:
         thr_to_attval_to_data_list: OrderedDict[float, OrderedDict[Hashable, List[float]]] = OrderedDict()
 
@@ -369,7 +377,7 @@ class Plotter:
             data_lists = list(attval_to_data_list.values())
             x: npt.NDArray[np.int_] = np.arange(len(data_lists))
             y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
-            y_sem: npt.NDArray[np.float_] = np.array([np.std(x, ddof=1) / np.sqrt(np.size(x)) for x in data_lists])
+            y_sem: npt.NDArray[np.float_] = np.array([standard_error_of_mean(x) for x in data_lists])
             ax.plot(
                 x,
                 y,
@@ -425,7 +433,7 @@ class Plotter:
             data_lists = list(attval_to_data_list.values())
             x: npt.NDArray[np.int_] = np.arange(len(data_lists))
             y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
-            y_sem: npt.NDArray[np.float_] = np.array([np.std(x, ddof=1) / np.sqrt(np.size(x)) for x in data_lists])
+            y_sem: npt.NDArray[np.float_] = np.array([standard_error_of_mean(x) for x in data_lists])
             ax.plot(
                 x,
                 y,
@@ -501,77 +509,76 @@ class Plotter:
 
     def plot_zla(
         self,
+        attval: Hashable,
         figname: Optional[Union[str, pathlib.Path]] = None,
-        threshold: float = 0,
-        max_rank: int = 400,
-        label_format: str = '$(n_{{att}},n_{{val}})={}$',
+        xlabel: str = "Frequency Rank",
+        ylabel: str = "Hypo-segment Length",
+        thresholds: Sequence[float] = (0, 0.5, 1.5, 2),
+        max_rank: Optional[int] = None,
+        attval_format: str = '$(n_{{att}},n_{{val}})={}$',
+        threshold_format: str = '$threshold={}$',
         verbose: bool = False,
     ):
-        def get_distr(lang_data: List[Tuple[int, ...]]):
-            freqs: List[int] = []
-            freq_to_lens: defaultdict[int, List[int]] = defaultdict(list)
-            for word, freq in (
-                Counter(
-                    itertools.chain.from_iterable(
-                        EntropyCalculator(
-                            lang_data,
-                            threshold=threshold,
-                        )
-                        .segments
-                    )
-                )
-                .most_common()
-            ):
-                freqs.append(freq)
-                freq_to_lens[freq].append(len(word))
-            return [
-                np.mean(freq_to_lens[freq])
-                for freq in freqs
-            ]
+        thr_to_trained_data_list: Dict[float, List[List[float]]] = dict()
+        for log_file in self.log_files[attval]:
+            try:
+                lang_data = self.__get_trained_language(log_file)
+            except Exception as e:
+                print(f"Exception caught: {e}")
+                continue
+            entr_calc = EntropyCalculator(lang_data)
+            for thr in thresholds:
+                if thr not in thr_to_trained_data_list:
+                    thr_to_trained_data_list[thr] = []
 
-        trained_data_list: List[List[float]] = []
-        untrained_data_list: List[List[float]] = []
-        for attval, log_files in self.log_files.items():
-            if verbose:
-                print(f'{self.__class__}: {attval}')
-            for log in log_files:
-                try:
-                    trained_lang_data = self.__get_trained_language(log)
-                    untrained_lang_data = self.__get_untrained_language(log)
-                except Exception as e:
-                    print(f"Exception caught: {e}")
-                    continue
-                trained_data_list.append(get_distr(trained_lang_data))
-                untrained_data_list.append(get_distr(untrained_lang_data))
-        trained_plot_data = [
-            np.mean([e for e in x if e is not None])
-            for x in zip(*trained_data_list)
-        ][:max_rank]
-        untrained_plot_data = [
-            np.mean([e for e in x if e is not None])
-            for x in zip(*untrained_data_list)
-        ][:max_rank]
-        fig, ax = plt.subplots(
-            1,
-            1,
-            sharex=True,
-            sharey=True,
-        )
-        ax.plot(
-            range(1, 1 + len(trained_plot_data)),
-            trained_plot_data,
-            label="Trained",
-        )
-        ax.plot(
-            range(1, 1 + len(untrained_plot_data)),
-            untrained_plot_data,
-            label="Untrained",
-        )
-        ax.legend()
-        ax.set_xlabel('Frequency Rank')
-        ax.set_ylabel('Word Length')
+                entr_calc.threshold = thr
+
+                freqs: List[int] = []
+                freq_to_lens: defaultdict[int, List[int]] = defaultdict(list)
+
+                for word, freq in Counter(itertools.chain.from_iterable(entr_calc.segments)).most_common():
+                    freqs.append(freq)
+                    freq_to_lens[freq].append(len(word))
+
+                thr_to_trained_data_list[thr].append([np.mean(freq_to_lens[freq]) for freq in freqs])
+            del entr_calc
+
+        fig = plt.figure(tight_layout=True)
+        ax = fig.add_subplot(111)
+        for thr in thresholds:
+            data_list = thr_to_trained_data_list[thr]
+            y: npt.NDArray[np.float_] = np.array(
+                [
+                    np.mean([e for e in x if e is not None]) for x in zip(*data_list)
+                    # if len([e for e in x if e is not None]) > 2
+                ][:max_rank]
+            )
+            y_sem: npt.NDArray[np.float_] = np.array(
+                [
+                    standard_error_of_mean([e for e in x if e is not None]) for x in zip(*data_list)
+                    # if len([e for e in x if e is not None]) > 2
+                ][:max_rank]
+            )
+            x: npt.NDArray[np.int_] = np.arange(np.size(y)) + 1
+            ax.plot(
+                x,
+                y,
+                label=attval_format.format(attval) + ", " + threshold_format.format(thr),
+            )
+            ax.fill_between(
+                x,
+                y - y_sem,
+                y + y_sem,
+                color=ax.get_lines()[-1].get_color(),
+                alpha=0.3,
+            )
+        ax.legend(bbox_to_anchor=(0.5, -0.2), loc="upper center")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
         if figname is None:
-            figname = f'zla_thr{threshold}_hie1.png'
+            figname = f'zla_attval{attval}.png'
         fig.savefig(self.img_dir / figname, bbox_inches='tight')
 
     def plot_zipf(
@@ -799,8 +806,7 @@ class Plotter:
             if verbose:
                 print(f'{self.__class__}: {attval}')
             plain_topsims: List[float] = []
-            thr_to_topsim: defaultdict[float, List[float]] = defaultdict(list)
-            thr_to_random_seg_topsim: defaultdict[float, List[float]] = defaultdict(list)
+            thr_to_topsims: defaultdict[float, List[float]] = defaultdict(list)
             for log in log_files:
                 try:
                     sender_input_data = self.__get_sender_inputs(log)
@@ -816,27 +822,103 @@ class Plotter:
                     if verbose:
                         print(f"{self.__class__}: {thr}")
                     entr_calc.threshold = thr
-                    thr_to_topsim[thr].append(compute_topsim(entr_calc.hashed_segments, sender_input_data))
-                    thr_to_random_seg_topsim[thr].append(compute_topsim(entr_calc.hashed_random_segments, sender_input_data))
+                    thr_to_topsims[thr].append(compute_topsim(entr_calc.hashed_segments, sender_input_data))
                 del entr_calc
+
+            data_lists = [plain_topsims] + [thr_to_topsims[thr] for thr in thresholds]
+            x: npt.NDArray[np.float_] = np.array([-0.25] + list(thresholds))
+            y: npt.NDArray[np.float_] = np.array([np.mean(d) for d in data_lists])
+            y_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
             ax.plot(
-                (-0.25,) + tuple(thresholds),
-                [np.mean(plain_topsims)] + [np.mean(thr_to_topsim[thr]) for thr in thresholds],
+                x,
+                y,
                 label=attval_format.format(attval),
                 marker=self.markers[i % len(self.markers)],
             )
-            ax.plot(
-                (-0.25,) + tuple(thresholds),
-                [np.mean(plain_topsims)] + [np.mean(thr_to_random_seg_topsim[thr]) for thr in thresholds],
-                linestyle="--",
+            ax.fill_between(
+                x,
+                y - y_sem,
+                y + y_sem,
                 color=ax.get_lines()[-1].get_color(),
-                marker=self.markers[i % len(self.markers)],
+                alpha=0.3,
             )
         ax.legend()
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         ax.set_xticks((-0.25,) + tuple(thresholds))
-        ax.set_xticklabels(("Plain",) + tuple(thresholds))
+        ax.set_xticklabels(("$-\\infty$",) + tuple(thresholds))
+        fig.savefig(self.img_dir / figname, bbox_inches='tight')
+
+    def plot_topsim_compared_to_random_baseline(
+        self,
+        attval: Hashable,
+        thresholds: Sequence[float] = (0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2),
+        figname: Optional[Union[pathlib.Path, str]] = None,
+        xlabel: str = "$threshold$",
+        ylabel: str = "TopSim",
+        attval_format: str = '$(n_{{att}},n_{{val}})={}$',
+        verbose: bool = True,
+    ):
+        thr_to_topsims: defaultdict[float, List[float]] = defaultdict(list)
+        thr_to_random_seg_topsims: defaultdict[float, List[float]] = defaultdict(list)
+
+        for log_file in self.log_files[attval]:
+            if int(log_file.extract_config().n_attributes) < 2:
+                raise ValueError("n_attributes must be larger than 1.")
+            try:
+                sender_input_data = self.__get_sender_inputs(log_file)
+                trained_lang_data = self.__get_trained_language(log_file)
+            except Exception as e:
+                print(f"Exception caught: {e}")
+                continue
+            entr_calc = EntropyCalculator(trained_lang_data)
+            for thr in thresholds:
+                if verbose:
+                    print(f"{self.__class__}: {thr}")
+                entr_calc.threshold = thr
+                thr_to_topsims[thr].append(compute_topsim(entr_calc.hashed_segments, sender_input_data))
+                thr_to_random_seg_topsims[thr].append(compute_topsim(entr_calc.hashed_random_segments, sender_input_data))
+            del entr_calc
+        fig = plt.figure(tight_layout=True)
+        ax = fig.add_subplot(111)
+        data_lists = [thr_to_topsims[thr] for thr in thresholds]
+        random_seg_data_lists = [thr_to_random_seg_topsims[thr] for thr in thresholds]
+        x: npt.NDArray[np.float_] = np.array(list(thresholds))
+        y: npt.NDArray[np.float_] = np.array([np.mean(d) for d in data_lists])
+        y_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
+        y_random: npt.NDArray[np.float_] = np.array([np.mean(d) for d in random_seg_data_lists])
+        y_random_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in random_seg_data_lists])
+        ax.plot(
+            x,
+            y,
+            label=attval_format.format(attval),
+            marker="o",
+        )
+        ax.fill_between(
+            x,
+            y - y_sem,
+            y + y_sem,
+            color=ax.get_lines()[-1].get_color(),
+            alpha=0.3,
+        )
+        ax.plot(
+            x,
+            y_random,
+            label=attval_format.format(attval) + " (random boundary)",
+            marker="D",
+        )
+        ax.fill_between(
+            x,
+            y_random - y_random_sem,
+            y_random + y_random_sem,
+            color=ax.get_lines()[-1].get_color(),
+            alpha=0.3,
+        )
+        ax.legend()
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if figname is None:
+            figname = f"topsim_attval{attval}_vs_random_baseline.png"
         fig.savefig(self.img_dir / figname, bbox_inches='tight')
 
 
@@ -853,9 +935,20 @@ def main(params: Sequence[str]):
     plt.rcParams["font.size"] = 14  # 18
     # plotter.plot_conditional_entropy()
     # plotter.plot_sample_utterances(key=(2, 64), threshold=1.25, random_seed=1)
-    plotter.plot_n_hypothetical_boundaries()
+    # plotter.plot_n_hypothetical_boundaries()
     # plotter.plot_vocab_size()
     # plotter.plot_topsim()
+    plotter.plot_topsim_compared_to_random_baseline(attval=(2, 64))
+    plotter.plot_topsim_compared_to_random_baseline(attval=(3, 16))
+    plotter.plot_topsim_compared_to_random_baseline(attval=(4, 8))
+    plotter.plot_topsim_compared_to_random_baseline(attval=(6, 4))
+    plotter.plot_topsim_compared_to_random_baseline(attval=(12, 2))
+    # plotter.plot_zla(attval=(1, 4096))
+    # plotter.plot_zla(attval=(2, 64))
+    # plotter.plot_zla(attval=(3, 16))
+    # plotter.plot_zla(attval=(4, 8))
+    # plotter.plot_zla(attval=(6, 4))
+    # plotter.plot_zla(attval=(12, 2))
     # for thr in [1.0, 1.25]:
     #     for seed in [0, 1, 2, 3, 4, 5]:
     #         plotter.plot_sample_utterances(key=(2, 64), threshold=thr, random_seed=seed)
