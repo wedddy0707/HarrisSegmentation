@@ -340,7 +340,7 @@ class Plotter:
                 except Exception as e:
                     print(f"Exception caught: {e}")
                     continue
-        print(n_valid_langs)
+        print("Report:", n_valid_langs)
 
     def plot_n_hypothetical_boundaries(
         self,
@@ -932,17 +932,25 @@ def main(params: Sequence[str]):
         img_dir=opts.img_dir,
         tmp_dir=opts.tmp_dir,
     )
+    plotter.report_n_valid_emergent_languages()
+    print("")
+    print("")
+    print("")
+    print(f"Please uncomment function calls you want in the last code block in {__file__}")
+    print("")
+    print("")
+    print("")
     plt.rcParams["font.size"] = 14  # 18
     # plotter.plot_conditional_entropy()
     # plotter.plot_sample_utterances(key=(2, 64), threshold=1.25, random_seed=1)
     # plotter.plot_n_hypothetical_boundaries()
     # plotter.plot_vocab_size()
     # plotter.plot_topsim()
-    plotter.plot_topsim_compared_to_random_baseline(attval=(2, 64))
-    plotter.plot_topsim_compared_to_random_baseline(attval=(3, 16))
-    plotter.plot_topsim_compared_to_random_baseline(attval=(4, 8))
-    plotter.plot_topsim_compared_to_random_baseline(attval=(6, 4))
-    plotter.plot_topsim_compared_to_random_baseline(attval=(12, 2))
+    # plotter.plot_topsim_compared_to_random_baseline(attval=(2, 64))
+    # plotter.plot_topsim_compared_to_random_baseline(attval=(3, 16))
+    # plotter.plot_topsim_compared_to_random_baseline(attval=(4, 8))
+    # plotter.plot_topsim_compared_to_random_baseline(attval=(6, 4))
+    # plotter.plot_topsim_compared_to_random_baseline(attval=(12, 2))
     # plotter.plot_zla(attval=(1, 4096))
     # plotter.plot_zla(attval=(2, 64))
     # plotter.plot_zla(attval=(3, 16))
@@ -952,7 +960,6 @@ def main(params: Sequence[str]):
     # for thr in [1.0, 1.25]:
     #     for seed in [0, 1, 2, 3, 4, 5]:
     #         plotter.plot_sample_utterances(key=(2, 64), threshold=thr, random_seed=seed)
-    # plotter.report_n_valid_emergent_languages()
 
 
 if __name__ == '__main__':
