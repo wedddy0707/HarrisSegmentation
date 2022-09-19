@@ -7,12 +7,14 @@ import itertools
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from torch.nn.functional import one_hot
+from torch.nn.functional import one_hot  # type: ignore
 
-
+# Type Hint of one_hot is not given in advance.
 one_hot: Callable[..., torch.LongTensor]
+
+
 def one_hotify(
-    data:     List[Tuple[int, ...]],
+    data: List[Tuple[int, ...]],
     n_values: int,
 ) -> List[torch.Tensor]:
     return [
@@ -27,7 +29,7 @@ def one_hotify(
 
 
 class ScaledDataset(Dataset[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
-    examples:       List[torch.Tensor]
+    examples: List[torch.Tensor]
     scaling_factor: float
 
     @classmethod
@@ -65,7 +67,7 @@ class ScaledDataset(Dataset[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
             one_hotify(trn_guessable_list, n_values),
             scaling_factor=scaling_factor,
         )
-        vld_dataset = cls(
+        dev_dataset = cls(
             one_hotify(trn_list, n_values),
             one_hotify(trn_guessable_list, n_values),
             scaling_factor=1,
@@ -80,7 +82,7 @@ class ScaledDataset(Dataset[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
             one_hotify(all_guessable_list, n_values),
             scaling_factor=1,
         )
-        return trn_dataset, vld_dataset, tst_dataset, all_dataset
+        return trn_dataset, dev_dataset, tst_dataset, all_dataset
 
     def __init__(
         self,

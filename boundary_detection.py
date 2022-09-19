@@ -10,7 +10,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import itertools
 
 from config_reader import get_params
 from logfile_reader import LogFile, get_logfiles
@@ -124,8 +123,8 @@ class EntropyCalculator(Generic[T]):
             self.__branching_entropy = dict()
             for context, context_freq in self.freq.items():
                 succ_freq_list = [self.freq[context + (a,)] for a in self.alph]
-                if sum(succ_freq_list) == 0:
-                    continue
+                # if sum(succ_freq_list) == 0:
+                #     continue
                 self.__branching_entropy[context] = (
                     -1 * sum(
                         succ_freq * (np.log2(succ_freq) - np.log2(context_freq))
@@ -572,7 +571,7 @@ class Plotter:
                 color=ax.get_lines()[-1].get_color(),
                 alpha=0.3,
             )
-        ax.legend(bbox_to_anchor=(0.5, -0.2), loc="upper center")
+        ax.legend(bbox_to_anchor=(0.5, -0.25), loc="upper center")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         ax.set_xscale("log")
@@ -677,7 +676,7 @@ class Plotter:
                     entropies_bf,
                     linewidth=0.75,
                     label=(
-                        None if len(ax.get_lines()) > 0 else "emergent language before training"
+                        None if len(ax.get_lines()) > 0 else "Emergent language before training"
                     ),
                     color="blue",
                     linestyle="dashed"
@@ -687,7 +686,7 @@ class Plotter:
                     entropies_af,
                     linewidth=0.75,
                     label=(
-                        None if len(ax.get_lines()) > 1 else "valid emergent language after training"
+                        None if len(ax.get_lines()) > 1 else "Successful language after training"
                     ),
                     color="red",
                 )
@@ -922,6 +921,27 @@ class Plotter:
         fig.savefig(self.img_dir / figname, bbox_inches='tight')
 
 
+def generate_random_synthetic_language(
+    n_attributes: int,
+    n_values: int,
+    max_len: int,
+    vocab_size: int,
+    random_seed: int = 0,
+):
+    attval_to_segment: Dict[Tuple[int, int], Tuple[int, ...]] = {}
+    assert max_len >= n_attributes
+    random_state = np.random.RandomState(random_seed)
+    segment_len = max_len // n_attributes
+    for a in range(n_attributes):
+        for v in range(n_values):
+            segment = tuple(random_state.choice(vocab_size, segment_len))
+            attval_to_segment[a, v] = segment
+    synthetic_language: List[Tuple[int, ...]] = []
+    for values in itertools.product(range(n_values), repeat=n_attributes):
+        message = sum((attval_to_segment[a, v] for a, v in enumerate(values)), start=())
+        synthetic_language.append(message)
+
+
 def main(params: Sequence[str]):
     opts = get_params(params)
     log_files = get_logfiles(opts.log_dirs)
@@ -941,7 +961,7 @@ def main(params: Sequence[str]):
     print("")
     print("")
     plt.rcParams["font.size"] = 14  # 18
-    # plotter.plot_conditional_entropy()
+    plotter.plot_conditional_entropy()
     # plotter.plot_sample_utterances(key=(2, 64), threshold=1.25, random_seed=1)
     # plotter.plot_n_hypothetical_boundaries()
     # plotter.plot_vocab_size()

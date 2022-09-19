@@ -27,7 +27,7 @@ class PeriodicAgentResetter(Callback):
         self.receiver_life_span = receiver_life_span
         self.sender_phase = sender_phase
         self.receiver_phase = receiver_phase
-    
+
     def on_train_begin(self, trainer_instance: Any) -> None:
         self.trainer = trainer_instance
 

@@ -1,38 +1,66 @@
-from typing import (
-    Any,
-    List,
-    Dict,
-    Union,
-    Optional,
-    Tuple,
-    Literal,
-)
-from collections import defaultdict
+from typing import List, Literal
 import argparse
 import json
 import torch
-import torch.nn.functional as F
 import sys
 from torch.utils.data import DataLoader
 
 import egg.core as core
 from egg.core import EarlyStopperAccuracy
-from egg.core.batch import Batch
-from egg.core.interaction import Interaction
-from egg.core.baselines import (
-    NoBaseline,
-    MeanBaseline,
-    BuiltInBaseline,
-)
-from egg.zoo.compo_vs_generalization.archs import (
-    Receiver,
-    Sender,
-)
-from egg.zoo.compo_vs_generalization.intervention import Evaluator
+from egg.core.baselines import MeanBaseline
 
 from data import ScaledDataset
-from archs import Sender, Receiver, PlusOneWrapper
-from ease_of_teaching import PeriodicAgentResetter
+from archs import Sender, Receiver, PlusOneWrapper, DiffLoss, UIDGame
+from intervene import DumpCorpus, PeriodicAgentResetter
+
+
+class MyNamespace:
+    # Customized options
+    n_attributes: int
+    n_values: int
+    data_scaler: int
+    stats_freq: int
+    baseline: Literal["no", "mean", "builtin"]
+    sender_hidden: int
+    receiver_hidden: int
+    sender_entropy_coeff: float
+    sender_cell: Literal["rnn", "gru", "lstm"]
+    receiver_cell: Literal["rnn", "gru", "lstm"]
+    sender_emb: int
+    receiver_emb: int
+    early_stopping_thr: float
+    variable_length: bool
+    sender_life_span: int
+    receiver_life_span: int
+    n_guessable_attributes: int
+    run_uid_game: bool
+    # Common options
+    batch_size: int
+    max_len: int
+    vocab_size: int
+    lr: float
+    device: torch.device
+    n_epochs: int
+
+    def __init__(self) -> None:
+        self.n_attributes = 4
+        self.n_values = 4
+        self.data_scaler = 100
+        self.stats_freq = 0
+        self.baseline = "mean"
+        self.sender_hidden = 100
+        self.receiver_hidden = 100
+        self.sender_entropy_coeff = 1e-2
+        self.sender_cell = "gru"
+        self.receiver_cell = "gru"
+        self.sender_emb = 10
+        self.receiver_emb = 10
+        self.early_stopping_thr = 0.99999
+        self.variable_length = False
+        self.sender_life_span = 0
+        self.receiver_life_span = 0
+        self.n_guessable_attributes = 0
+        self.run_uid_game = False
 
 
 def s2b(s: str):
@@ -50,221 +78,36 @@ def s2b(s: str):
             f"Otherwise use one of {EXP_FOR_FALSE}."
         )
 
+
 def get_params(params: List[str]):
+    namespace = MyNamespace()
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_attributes", type=int, default=4, help="")
-    parser.add_argument("--n_values", type=int, default=4, help="")
-    parser.add_argument("--data_scaler", type=int, default=100)
-    parser.add_argument("--stats_freq", type=int, default=0)
-    parser.add_argument(
-        "--baseline", type=str, choices=["no", "mean", "builtin"], default="mean"
-    )
-    parser.add_argument(
-        "--sender_hidden",
-        type=int,
-        default=50,
-        help="Size of the hidden layer of Sender (default: 10)",
-    )
-    parser.add_argument(
-        "--receiver_hidden",
-        type=int,
-        default=50,
-        help="Size of the hidden layer of Receiver (default: 10)",
-    )
-
-    parser.add_argument(
-        "--sender_entropy_coeff",
-        type=float,
-        default=1e-2,
-        help="Entropy regularisation coeff for Sender (default: 1e-2)",
-    )
-
-    parser.add_argument("--sender_cell", type=str, default="rnn")
-    parser.add_argument("--receiver_cell", type=str, default="rnn")
-    parser.add_argument(
-        "--sender_emb",
-        type=int,
-        default=10,
-        help="Size of the embeddings of Sender (default: 10)",
-    )
-    parser.add_argument(
-        "--receiver_emb",
-        type=int,
-        default=10,
-        help="Size of the embeddings of Receiver (default: 10)",
-    )
-    parser.add_argument(
-        "--early_stopping_thr",
-        type=float,
-        default=0.99999,
-        help="Early stopping threshold on accuracy (defautl: 0.99999)",
-    )
-    parser.add_argument(
-        "--variable_length",
-        type=s2b,
-        default=False,
-        help="",
-    )
-    parser.add_argument(
-        "--sender_life_span",
-        type=int,
-        default=0,
-        help="",
-    )
-    parser.add_argument(
-        "--receiver_life_span",
-        type=int,
-        default=0,
-        help="",
-    )
-    parser.add_argument(
-        "--n_guessable_attributes",
-        type=int,
-        default=0,
-        help="",
-    )
+    parser.add_argument("--n_attributes", type=int, default=namespace.n_attributes)
+    parser.add_argument("--n_values", type=int, default=namespace.n_values)
+    parser.add_argument("--data_scaler", type=int, default=namespace.data_scaler)
+    parser.add_argument("--stats_freq", type=int, default=namespace.stats_freq)
+    parser.add_argument("--baseline", choices=["no", "mean", "builtin"], default=namespace.baseline)
+    parser.add_argument("--sender_hidden", type=int, default=namespace.sender_hidden)
+    parser.add_argument("--receiver_hidden", type=int, default=namespace.receiver_hidden)
+    parser.add_argument("--sender_entropy_coeff", type=float, default=namespace.sender_entropy_coeff)
+    parser.add_argument("--sender_cell", choices=["rnn", "gru", "lstm"], default=namespace.sender_cell)
+    parser.add_argument("--receiver_cell", choices=["rnn", "gru", "lstm"], default=namespace.receiver_cell)
+    parser.add_argument("--sender_emb", type=int, default=namespace.sender_emb)
+    parser.add_argument("--receiver_emb", type=int, default=namespace.receiver_emb)
+    parser.add_argument("--early_stopping_thr", type=float, default=namespace.early_stopping_thr)
+    parser.add_argument("--variable_length", type=s2b, default=namespace.variable_length)
+    parser.add_argument("--sender_life_span", type=int, default=namespace.sender_life_span)
+    parser.add_argument("--receiver_life_span", type=int, default=namespace.receiver_life_span)
+    parser.add_argument("--n_guessable_attributes", type=int, default=namespace.n_guessable_attributes)
+    parser.add_argument("--run_uid_game", type=int, default=namespace.run_uid_game)
 
     args = core.init(arg_parser=parser, params=params)
-    return args
 
+    for k, v in vars(args).items():
+        setattr(namespace, k, v)
 
-class DiffLoss(torch.nn.Module):
-    def __init__(
-        self,
-        n_attributes: int,
-        n_values:     int,
-    ):
-        super().__init__()
-        self.n_attributes = n_attributes
-        self.n_values = n_values
-
-    def forward(
-        self,
-        sender_input:    torch.Tensor,
-        _message:        Optional[torch.Tensor],
-        _receiver_input: Optional[torch.Tensor],
-        receiver_output: torch.Tensor,
-        _labels:         Optional[torch.Tensor],
-        _aux_input:      Optional[Dict[str, torch.Tensor]],
-    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
-        batch_size = sender_input.size(0)
-        sender_input = sender_input.view(batch_size, self.n_attributes, self.n_values)
-        receiver_output = receiver_output.view(
-            batch_size, self.n_attributes, self.n_values
-        )
-
-        acc = (
-            torch.sum(
-                (
-                    receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
-                ).detach(),
-                dim=1,
-            )
-            == self.n_attributes
-        ).float()
-        acc_or = (
-            receiver_output.argmax(dim=-1) == sender_input.argmax(dim=-1)
-        ).float()
-
-        receiver_output = receiver_output.view(
-            batch_size * self.n_attributes, self.n_values
-        )
-        labels = sender_input.argmax(dim=-1).view(batch_size * self.n_attributes)
-        loss = (
-            F.cross_entropy(receiver_output, labels, reduction="none")
-            .view(batch_size, self.n_attributes)
-            .mean(dim=-1)
-        )
-
-        return loss, {"acc": acc, "acc_or": acc_or}
-
-
-class DumpCorpus(core.Callback):
-    def __init__(
-        self,
-        loaders_metrics: List[Tuple[str, DataLoader[Tuple[Optional[torch.Tensor], ...]], torch.nn.Module]],
-        n_attributes: int,
-        n_values: int,
-        device: torch.device,
-        freq: int = 1,
-    ):
-        self.loaders_metrics = loaders_metrics
-        self.n_attributes = n_attributes
-        self.n_values = n_values
-        self.device = device
-        self.freq = freq
-
-    def on_train_begin(
-        self,
-        trainer_instance: core.Trainer
-    ):
-        self.trainer = trainer_instance
-        self.epoch = self.trainer.start_epoch
-        self.__dump(mode="dataset")
-        self.__dump(mode="language", epoch=self.epoch)
-
-    def on_train_end(self):
-        self.__dump(mode="language", epoch=self.epoch)
-
-    def on_epoch_end(self, loss: float, logs: Interaction, epoch: int):
-        self.epoch = epoch
-        if self.freq > 0 and epoch % self.freq == 0:
-            self.__dump(mode="language", epoch=epoch)
-
-    def __collect_data(self):
-        data: "defaultdict[Literal['split', 'sender_input', 'message', 'acc'], List[Any]]" = defaultdict(list)
-        game = self.trainer.game
-        game.eval()
-        old_loss = game.loss
-        for split_name, loader, metric in self.loaders_metrics:
-            game.loss = metric
-            for batch in loader:
-                if not isinstance(batch, Batch):
-                    batch = Batch(*batch)
-                batch = batch.to(self.device)
-                with torch.no_grad():
-                    interaction: Interaction = game(*batch)[1]
-                assert (
-                    interaction.sender_input is not None and
-                    interaction.message is not None and
-                    interaction.aux is not None and
-                    'acc' in interaction.aux
-                )
-                batch_size = interaction.sender_input.size(0)
-                data['split'].extend(
-                    [split_name] * batch_size
-                )
-                data['sender_input'].extend(
-                    interaction.sender_input
-                    .view(batch_size, self.n_attributes, self.n_values)
-                    .argmax(dim=-1)
-                    .tolist()
-                )
-                data['message'].extend(
-                    interaction.message.tolist()
-                )
-        game.loss = old_loss
-        game.train()
-        return data
-
-    def __dump(
-        self,
-        mode: Literal["dataset", "language"],
-        epoch: Optional[int] = None,
-    ):
-        assert mode in {"dataset", "language"}, mode
-        if mode == "language":
-            assert epoch is not None
-        keys = ('sender_input', 'split') if mode == 'dataset' else ('message', 'acc')
-        output: Dict[str, Union[str, int, Dict[str, Any]]] = dict(
-            mode=mode,
-            data={
-                k: v for k, v in self.__collect_data().items() if k in keys
-            },
-        )
-        if epoch is not None:
-            output['epoch'] = epoch
-        print(json.dumps(output).replace(' ', ''), flush=True)
+    return namespace
 
 
 def main(params: List[str]):
@@ -272,98 +115,69 @@ def main(params: List[str]):
     assert not hasattr(opts, 'mode')
     print(json.dumps(dict(mode='config', **vars(opts)), default=repr))
 
-    trn_dataset, vld_dataset, tst_dataset, all_dataset = ScaledDataset.create_train_test_data(
+    trn_dataset, dev_dataset, tst_dataset, all_dataset = ScaledDataset.create_train_test_data(
         n_attributes=opts.n_attributes,
         n_values=opts.n_values,
         p_hold_out=0.0,
         n_guessable_attributes=opts.n_guessable_attributes,
         scaling_factor=opts.data_scaler,
     )
-    trn_loader, vld_loader, tst_loader, _ = (
+    trn_loader, dev_loader, _, _ = (
         DataLoader(trn_dataset, batch_size=opts.batch_size, shuffle=True),
-        DataLoader(vld_dataset, batch_size=opts.batch_size),
+        DataLoader(dev_dataset, batch_size=opts.batch_size),
         DataLoader(tst_dataset, batch_size=opts.batch_size),
         DataLoader(all_dataset, batch_size=opts.batch_size),
     )
 
     n_dim = opts.n_attributes * opts.n_values
 
-    if opts.receiver_cell in ["lstm", "rnn", "gru"]:
-        receiver = Receiver(
-            n_outputs=n_dim,
-            n_hidden=opts.receiver_hidden,
-            n_inputs=opts.n_guessable_attributes * opts.n_values,
-        )
-        receiver = core.RnnReceiverDeterministic(
-            receiver,
-            opts.vocab_size + 1,
-            opts.receiver_emb,
-            opts.receiver_hidden,
-            cell=opts.receiver_cell,
-        )
-    else:
-        raise ValueError(f"Unknown receiver cell, {opts.receiver_cell}")
-
-    if opts.sender_cell in ["lstm", "rnn", "gru"]:
-        sender = Sender(n_inputs=n_dim, n_hidden=opts.sender_hidden)
-        sender = core.RnnSenderReinforce(
-            agent=sender,
-            vocab_size=opts.vocab_size,
-            embed_dim=opts.sender_emb,
-            hidden_size=opts.sender_hidden,
-            max_len=opts.max_len,
-            cell=opts.sender_cell,
-        )
-    else:
-        raise ValueError(f"Unknown sender cell, {opts.sender_cell}")
+    receiver = Receiver(
+        n_features=n_dim,
+        vocab_size=opts.vocab_size + 1,
+        embed_dim=opts.receiver_emb,
+        hidden_size=opts.receiver_hidden,
+        cell=opts.receiver_cell,
+    )
+    sender = Sender(
+        n_features=n_dim,
+        vocab_size=opts.vocab_size,
+        embed_dim=opts.sender_emb,
+        hidden_size=opts.sender_hidden,
+        max_len=opts.max_len,
+        cell=opts.sender_cell,
+    )
 
     if not opts.variable_length:
         sender = PlusOneWrapper(sender)
     loss = DiffLoss(opts.n_attributes, opts.n_values)
 
-    baseline = {
-        "no":      NoBaseline,
-        "mean":    MeanBaseline,
-        "builtin": BuiltInBaseline,
-    }[opts.baseline]
-
-    game = core.SenderReceiverRnnReinforce(
-        sender,
-        receiver,
-        loss,
-        sender_entropy_coeff=opts.sender_entropy_coeff,
-        receiver_entropy_coeff=0.0,
-        length_cost=0.0,
-        baseline_type=baseline,
-    )
+    if opts.run_uid_game:
+        pass
+        game = UIDGame(
+            sender,
+            receiver,
+            sender_entropy_coeff=opts.sender_entropy_coeff,
+            n_attributes=opts.n_attributes,
+            n_values=opts.n_values,
+        )
+    else:
+        game = core.SenderReceiverRnnReinforce(
+            sender,
+            receiver,
+            loss,
+            sender_entropy_coeff=opts.sender_entropy_coeff,
+            receiver_entropy_coeff=0.0,
+            length_cost=0.0,
+            baseline_type=MeanBaseline,
+        )
     optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
 
-    # holdout_evaluator = Evaluator(
-    #     [
-    #         (
-    #             "test",
-    #             test_loader,
-    #             DiffLoss(opts.n_attributes, opts.n_values),
-    #         ),
-    #     ],
-    #     opts.device,
-    #     freq=0,
-    # )
     dump_corpus = DumpCorpus(
-        [
-            (
-                "validation",
-                vld_loader,
-                DiffLoss(opts.n_attributes, opts.n_values),
-            ),
-            (
-                "test",
-                tst_loader,
-                DiffLoss(opts.n_attributes, opts.n_values),
-            ),
-        ],
-        opts.n_attributes,
-        opts.n_values,
+        {
+            # "train": trn_dataset,
+            "dev": dev_dataset,
+            "test": tst_dataset,
+        },
         device=opts.device,
         freq=0,
     )
@@ -380,19 +194,15 @@ def main(params: List[str]):
         game=game,
         optimizer=optimizer,
         train_data=trn_loader,
-        validation_data=vld_loader,
+        validation_data=dev_loader,
         callbacks=[
             core.ConsoleLogger(as_json=True, print_train_loss=False),
             early_stopper,
-            # holdout_evaluator,
             dump_corpus,
             agent_resetter,
         ],
     )
-    trainer.train(n_epochs=opts.n_epochs)
-
-    print("---End--")
-
+    trainer.train(n_epochs=opts.n_epochs)  # type: ignore
     core.close()
 
 
