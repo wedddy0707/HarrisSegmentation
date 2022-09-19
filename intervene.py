@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Sequence, Any, List, Literal, Dict, Optional, Tuple
+from typing import Sequence, Any, List, Literal, Dict, Optional, Tuple, Union
 import editdistance
 import torch
 import torch.nn as nn
@@ -13,7 +13,7 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from egg import core
 from data import ScaledDataset
-from archs import Sender, Receiver, DiffLoss
+from archs import Sender, Receiver, DiffLoss, UIDGame
 
 
 _ACC = "acc"
@@ -62,7 +62,7 @@ class AskSender(core.Callback):
     def ask_sender(self):
         data: defaultdict[str, List[Any]] = defaultdict(list)
 
-        game: core.SenderReceiverRnnReinforce = self.trainer.game
+        game: Union[core.SenderReceiverRnnReinforce, UIDGame] = self.trainer.game
         sender: Sender = game.sender
         receiver: Receiver = game.receiver
         loss_fn: DiffLoss = game.loss
@@ -157,8 +157,8 @@ class AgentResetter(core.Callback):
         self.trainer = trainer_instance
         self.epoch = self.trainer.start_epoch
 
-        self.game: core.SenderReceiverRnnReinforce = self.trainer.game
-        assert isinstance(self.game, core.SenderReceiverRnnReinforce)
+        self.game: Union[core.SenderReceiverRnnReinforce, UIDGame] = self.trainer.game
+        assert isinstance(self.game, (core.SenderReceiverRnnReinforce, UIDGame))
 
         self.sender: Sender = self.game.sender
         self.receiver: Receiver = self.game.receiver
