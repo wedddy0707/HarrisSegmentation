@@ -100,7 +100,7 @@ def get_params(params: List[str]):
     parser.add_argument("--sender_life_span", type=int, default=namespace.sender_life_span)
     parser.add_argument("--receiver_life_span", type=int, default=namespace.receiver_life_span)
     parser.add_argument("--n_guessable_attributes", type=int, default=namespace.n_guessable_attributes)
-    parser.add_argument("--run_uid_game", type=int, default=namespace.run_uid_game)
+    parser.add_argument("--run_uid_game", type=s2b, default=namespace.run_uid_game)
 
     args = core.init(arg_parser=parser, params=params)
 
