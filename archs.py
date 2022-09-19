@@ -289,7 +289,7 @@ class UIDGame(nn.Module):
         self.n_attributes = n_attributes
         self.n_values = n_values
         self.max_loss = torch.log(torch.as_tensor(n_values ** n_attributes)).item()
-        self.loss_fn = DiffLoss(n_attributes, n_values)
+        self.loss = DiffLoss(n_attributes, n_values)
         self.loss_baseline = MeanBaseline()
         self.logging_strategy = LoggingStrategy()
 
@@ -313,7 +313,7 @@ class UIDGame(nn.Module):
             expected_loss = self.max_loss * (max_len - i - 1) / max_len
 
             receiver_output, _, _ = self.receiver.forward(message[:, :i + 1])
-            loss, aux_info = self.loss_fn.forward(sender_input, None, None, receiver_output, None)
+            loss, aux_info = self.loss.forward(sender_input, None, None, receiver_output, None)
             total_loss = total_loss + torch.abs(loss - expected_loss)
 
         total_loss = total_loss / max_len
