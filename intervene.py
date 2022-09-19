@@ -38,7 +38,7 @@ class AskSender(core.Callback):
     ):
         self.split_to_dataset = split_to_dataset
         self.device = device
-        self.freq = freq
+        self.freq = None if freq == 0 else freq
 
     def on_train_begin(self, trainer_instance: core.Trainer):
         self.trainer = trainer_instance
@@ -66,6 +66,8 @@ class AskSender(core.Callback):
         game.eval()
         with torch.no_grad():
             for split, dataset in self.split_to_dataset.items():
+                if len(dataset) == 0:
+                    continue
                 loader = DataLoader(dataset, batch_size=len(dataset))
                 for input_s, _, _ in loader:
                     input_s: torch.Tensor = input_s.to(self.device)
@@ -76,7 +78,7 @@ class AskSender(core.Callback):
                     )
                     acc: torch.Tensor = rest["acc"]
                     data[_ACC].extend(acc.tolist())
-                    data[_LOSS].extend(loss.item())
+                    data[_LOSS].extend(loss.tolist())
                     data[_INPUT].extend(input_s.tolist())
                     data[_MESSAGE].extend(output_s.tolist())
                     data[_OUTPUT].extend(output_r.tolist())

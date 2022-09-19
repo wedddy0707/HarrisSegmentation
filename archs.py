@@ -136,7 +136,12 @@ class Sender(nn.Module):
     def reset_parameters(self):
         nn.init.normal_(self.sos_embedding, 0.0, 0.01)
 
-    def forward(self, x: torch.Tensor):
+    def forward(
+        self,
+        x: torch.Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ):
         prev_h = [self.encoder.forward(x)]
         prev_h.extend([torch.zeros_like(prev_h[0]) for _ in range(self.num_layers - 1)])
         prev_c = [torch.zeros_like(prev_h[0]) for _ in range(self.num_layers)]  # only used for LSTM
@@ -262,6 +267,8 @@ class Receiver(nn.Module):
         message: torch.Tensor,
         input: Optional[torch.Tensor] = None,
         lengths: Optional[torch.Tensor] = None,
+        *args: Any,
+        **kwargs: Any,
     ):
         encoded = self.encoder.forward(message, lengths=lengths)
         output = self.decoder_1.forward(encoded)
