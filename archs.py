@@ -1,4 +1,5 @@
 from typing import Tuple, Optional, Dict, Any, Literal, List
+from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -290,7 +291,7 @@ class UIDGame(nn.Module):
         self.n_values = n_values
         self.max_loss = torch.log(torch.as_tensor(n_values ** n_attributes)).item()
         self.loss = DiffLoss(n_attributes, n_values)
-        self.loss_baseline = MeanBaseline()
+        self.baselines: "defaultdict[str, MeanBaseline]" = defaultdict(MeanBaseline)
         self.logging_strategy = LoggingStrategy()
 
     def forward(
@@ -320,8 +321,11 @@ class UIDGame(nn.Module):
 
         optimized_loss = \
             + total_loss \
-            + (total_loss.detach() - self.loss_baseline.predict(total_loss.detach())) * log_prob_s.sum(dim=-1) \
+            + (total_loss.detach() - self.baselines["loss"].predict(total_loss.detach())) * log_prob_s.sum(dim=-1) \
             + entropy_s.mean(dim=-1) * self.sender_entropy_coeff
+
+        if self.training:
+            self.baselines["loss"].update(total_loss.detach())
 
         interaction = self.logging_strategy.filtered_interaction(
             sender_input=sender_input,
