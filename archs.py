@@ -352,4 +352,4 @@ class UIDGame(nn.Module):
             aux=aux_info,
         )
 
-        return optimized_loss, interaction
+        return optimized_loss.mean(), interaction
