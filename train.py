@@ -179,6 +179,8 @@ def main(params: List[str]):
             "test": tst_dataset,
         },
         device=opts.device,
+        n_attributes=opts.n_attributes,
+        n_values=opts.n_values,
         freq=0,
     )
     early_stopper = EarlyStopperAccuracy(
