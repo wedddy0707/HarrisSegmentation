@@ -103,7 +103,7 @@ class Sender(nn.Module):
         max_len: int,
         num_layers: int = 1,
         cell: Literal["rnn", "gru", "lstm"] = "rnn",
-        force_eos: bool = True,
+        force_eos: bool = False,
     ):
         super().__init__()
         self.force_eos = force_eos

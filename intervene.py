@@ -34,10 +34,14 @@ class AskSender(core.Callback):
         self,
         split_to_dataset: Dict[Literal["train", "dev", "test"], ScaledDataset],
         device: torch.device,
+        n_attributes: int,
+        n_values: int,
         freq: Optional[int] = 1,
     ):
         self.split_to_dataset = split_to_dataset
         self.device = device
+        self.n_attributes = n_attributes
+        self.n_values = n_values
         self.freq = None if freq == 0 else freq
 
     def on_train_begin(self, trainer_instance: core.Trainer):
@@ -68,7 +72,8 @@ class AskSender(core.Callback):
             for split, dataset in self.split_to_dataset.items():
                 if len(dataset) == 0:
                     continue
-                loader = DataLoader(dataset, batch_size=len(dataset))
+                batch_size = len(dataset)
+                loader = DataLoader(dataset, batch_size=batch_size)
                 for input_s, _, _ in loader:
                     input_s: torch.Tensor = input_s.to(self.device)
                     output_s = sender.forward(input_s)[0]
@@ -80,7 +85,7 @@ class AskSender(core.Callback):
                     data[_ACC].extend(acc.tolist())
                     data[_LOSS].extend(loss.tolist())
                     data[_INPUT].extend(input_s.tolist())
-                    data[_MESSAGE].extend(output_s.tolist())
+                    data[_MESSAGE].extend(output_s.view(batch_size, self.n_attributes, self.n_values).argmax(dim=-1).tolist())
                     data[_OUTPUT].extend(output_r.tolist())
                     data[_SPLIT].extend([split] * input_s.shape[0])
         game.train()
