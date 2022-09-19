@@ -66,20 +66,21 @@ class AskSender(core.Callback):
         game.eval()
         with torch.no_grad():
             for split, dataset in self.split_to_dataset.items():
-                for sample, _, _ in dataset:
-                    input_s = sample.unsqueeze(0).to(self.device)
+                loader = DataLoader(dataset, batch_size=len(dataset))
+                for input_s, _, _ in loader:
+                    input_s: torch.Tensor = input_s.to(self.device)
                     output_s = sender.forward(input_s)[0]
                     output_r = receiver.forward(output_s)[0]
                     loss, rest = loss_fn.forward(
                         input_s, output_s, None, output_r, None
                     )
                     acc: torch.Tensor = rest["acc"]
-                    data[_ACC].append(acc.item())
-                    data[_LOSS].append(loss.item())
-                    data[_INPUT].append(sample.tolist())
-                    data[_MESSAGE].append(output_s.tolist()[0])
-                    data[_OUTPUT].append(output_r.tolist()[0])
-                    data[_SPLIT].append(split)
+                    data[_ACC].extend(acc.tolist())
+                    data[_LOSS].extend(loss.item())
+                    data[_INPUT].extend(input_s.tolist())
+                    data[_MESSAGE].extend(output_s.tolist())
+                    data[_OUTPUT].extend(output_r.tolist())
+                    data[_SPLIT].extend([split] * input_s.shape[0])
         game.train()
         return dict(data)
 
