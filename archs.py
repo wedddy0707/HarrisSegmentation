@@ -39,7 +39,6 @@ class PlusOneWrapper(torch.nn.Module):
         *input: Tuple[Optional[torch.Tensor], ...],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         r1, r2, r3 = self.wrapped(*input)
-        r1 = r1[:, :-1]
         return r1 + 1, r2, r3
 
 
