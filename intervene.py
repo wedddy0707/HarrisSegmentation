@@ -154,7 +154,7 @@ class AgentResetter(core.Callback):
 
         self.sender: Sender = self.game.sender
         self.receiver: Receiver = self.game.receiver
-        self.baselines: "defaultdict[str, Any]" = self.game.baselines
+        self.baselines: "defaultdict[str, Any]" = self.game.mechanics.baselines
 
     def reset_module_parameters(self, m: nn.Module):
         reset_parameters = getattr(m, "reset_parameters", None)

@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict, Any, Literal, List
+from typing import Tuple, Optional, Dict, Any, Literal, List, NamedTuple
 from collections import defaultdict
 import torch
 import torch.nn as nn
@@ -274,6 +274,10 @@ class Receiver(nn.Module):
         return output, logits, entropy
 
 
+class DummyMechanics(NamedTuple):
+    baselines: "defaultdict[str, MeanBaseline]"
+
+
 class UIDGame(nn.Module):
     def __init__(
         self,
@@ -293,6 +297,10 @@ class UIDGame(nn.Module):
         self.loss = DiffLoss(n_attributes, n_values)
         self.baselines: "defaultdict[str, MeanBaseline]" = defaultdict(MeanBaseline)
         self.logging_strategy = LoggingStrategy()
+
+    @property
+    def mechanics(self):
+        return DummyMechanics(self.baselines)
 
     def forward(
         self,
