@@ -84,8 +84,8 @@ class AskSender(core.Callback):
                     acc: torch.Tensor = rest["acc"]
                     data[_ACC].extend(acc.tolist())
                     data[_LOSS].extend(loss.tolist())
-                    data[_INPUT].extend(input_s.tolist())
-                    data[_MESSAGE].extend(output_s.view(batch_size, self.n_attributes, self.n_values).argmax(dim=-1).tolist())
+                    data[_INPUT].extend(input_s.view(batch_size, self.n_attributes, self.n_values).argmax(dim=-1).tolist())
+                    data[_MESSAGE].extend(output_s.tolist())
                     data[_OUTPUT].extend(output_r.tolist())
                     data[_SPLIT].extend([split] * input_s.shape[0])
         game.train()
