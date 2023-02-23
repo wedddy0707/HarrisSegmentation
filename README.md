@@ -1,5 +1,5 @@
-# An Attempt to Obtain Word Boundaries of Emergent Languages Based on Harris's Articulation Scheme
-This code implements the experiment reported in a paper under review.
+# On the Word Boundaries of Emergent Languages Based on Harris's Articulation Scheme
+The implementation code of **"On the Word Boundaries of Emergent Languages Based on Harris's Articulation Scheme."** ICLR 2023.
 
 This repo depends on EGG toolkit.
 So, first of all, install EGG toolkit:
