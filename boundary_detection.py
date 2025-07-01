@@ -263,8 +263,8 @@ class EntropyCalculator(Generic[T]):
 
 
 def standard_error_of_mean(
-    x: Union[npt.NDArray[np.float_], Sequence[float]]
-) -> npt.NDArray[np.float_]:
+    x: Union[npt.NDArray[np.float64], Sequence[float]]
+) -> npt.NDArray[np.float64]:
     x = np.array(x)
     return np.std(x, ddof=1) / np.sqrt(np.size(x))
 
@@ -375,8 +375,8 @@ class Plotter:
         for thr, attval_to_data_list in thr_to_attval_to_data_list.items():
             data_lists = list(attval_to_data_list.values())
             x: npt.NDArray[np.int_] = np.arange(len(data_lists))
-            y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
-            y_sem: npt.NDArray[np.float_] = np.array([standard_error_of_mean(x) for x in data_lists])
+            y: npt.NDArray[np.float64] = np.array([np.mean(x) for x in data_lists])
+            y_sem: npt.NDArray[np.float64] = np.array([standard_error_of_mean(x) for x in data_lists])
             ax.plot(
                 x,
                 y,
@@ -431,8 +431,8 @@ class Plotter:
         for thr, attval_to_data_list in thr_to_attval_to_data_list.items():
             data_lists = list(attval_to_data_list.values())
             x: npt.NDArray[np.int_] = np.arange(len(data_lists))
-            y: npt.NDArray[np.float_] = np.array([np.mean(x) for x in data_lists])
-            y_sem: npt.NDArray[np.float_] = np.array([standard_error_of_mean(x) for x in data_lists])
+            y: npt.NDArray[np.float64] = np.array([np.mean(x) for x in data_lists])
+            y_sem: npt.NDArray[np.float64] = np.array([standard_error_of_mean(x) for x in data_lists])
             ax.plot(
                 x,
                 y,
@@ -546,13 +546,13 @@ class Plotter:
         ax = fig.add_subplot(111)
         for thr in thresholds:
             data_list = thr_to_trained_data_list[thr]
-            y: npt.NDArray[np.float_] = np.array(
+            y: npt.NDArray[np.float64] = np.array(
                 [
                     np.mean([e for e in x if e is not None]) for x in zip(*data_list)
                     # if len([e for e in x if e is not None]) > 2
                 ][:max_rank]
             )
-            y_sem: npt.NDArray[np.float_] = np.array(
+            y_sem: npt.NDArray[np.float64] = np.array(
                 [
                     standard_error_of_mean([e for e in x if e is not None]) for x in zip(*data_list)
                     # if len([e for e in x if e is not None]) > 2
@@ -825,9 +825,9 @@ class Plotter:
                 del entr_calc
 
             data_lists = [plain_topsims] + [thr_to_topsims[thr] for thr in thresholds]
-            x: npt.NDArray[np.float_] = np.array([-0.25] + list(thresholds))
-            y: npt.NDArray[np.float_] = np.array([np.mean(d) for d in data_lists])
-            y_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
+            x: npt.NDArray[np.float64] = np.array([-0.25] + list(thresholds))
+            y: npt.NDArray[np.float64] = np.array([np.mean(d) for d in data_lists])
+            y_sem: npt.NDArray[np.float64] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
             ax.plot(
                 x,
                 y,
