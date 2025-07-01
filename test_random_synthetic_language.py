@@ -21,7 +21,8 @@ def generate_random_synthetic_language(
     segment_len = max_len // n_attributes
     for a in range(n_attributes):
         for v in range(n_values):
-            segment = tuple(random_state.choice(vocab_size, segment_len))
+            # Increment `+1` for avoiding EOS marker `0`
+            segment = tuple(random_state.choice(vocab_size, segment_len) + 1)
             attval_to_segment[a, v] = segment
     inputs: List[Tuple[int, ...]] = []
     synthetic_messages: List[Tuple[int, ...]] = []
