@@ -882,11 +882,11 @@ class Plotter:
         ax = fig.add_subplot(111)
         data_lists = [thr_to_topsims[thr] for thr in thresholds]
         random_seg_data_lists = [thr_to_random_seg_topsims[thr] for thr in thresholds]
-        x: npt.NDArray[np.float_] = np.array(list(thresholds))
-        y: npt.NDArray[np.float_] = np.array([np.mean(d) for d in data_lists])
-        y_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
-        y_random: npt.NDArray[np.float_] = np.array([np.mean(d) for d in random_seg_data_lists])
-        y_random_sem: npt.NDArray[np.float_] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in random_seg_data_lists])
+        x: npt.NDArray[np.float64] = np.array(list(thresholds))
+        y: npt.NDArray[np.float64] = np.array([np.mean(d) for d in data_lists])
+        y_sem: npt.NDArray[np.float64] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in data_lists])
+        y_random: npt.NDArray[np.float64] = np.array([np.mean(d) for d in random_seg_data_lists])
+        y_random_sem: npt.NDArray[np.float64] = np.array([np.std(d, ddof=1) / np.sqrt(np.size(d)) for d in random_seg_data_lists])
         ax.plot(
             x,
             y,
