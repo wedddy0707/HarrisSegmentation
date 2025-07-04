@@ -1,5 +1,8 @@
 # On the Word Boundaries of Emergent Languages Based on Harris's Articulation Scheme
+
 The implementation code of "[On the Word Boundaries of Emergent Languages Based on Harris's Articulation Scheme.](https://openreview.net/forum?id=b4t9_XASt6G)" ICLR 2023.
+
+[Added 2025-07-04] **A revised paper is available here**: [manuscript/paper.pdf](manuscript/paper.pdf)
 
 The word segmentation algorithm can be found at `boundary_detection.EntropyCalculator`.
 
